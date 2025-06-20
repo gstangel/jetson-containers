@@ -41,6 +41,7 @@ parser.add_argument('--base', type=str, default='', help="the base container to 
 parser.add_argument('--multiple', action='store_true', help="the specified packages should be built independently as opposed to chained together")
 parser.add_argument('--build-flags', type=str, default='', help="extra flags to pass to 'docker build' commands")
 parser.add_argument('--build-args', type=str, default='', help="container build arguments (--build-arg) as a string of comma separated key:value pairs")
+parser.add_argument('--squash', action='store_true', help="squash intermediate Docker build stages to prevent exceeding max layer limits in final image")
 parser.add_argument('--use-proxy', action='store_true', help="use the host's proxy envvars for the container build")
 parser.add_argument('--package-dirs', type=str, default='', help="additional package search directories (comma or colon-separated)")
 
@@ -53,7 +54,7 @@ parser.add_argument('--test-only', type=str, default='', help="only test the spe
 
 parser.add_argument('--simulate', action='store_true', help="print out the build commands without actually building the containers")
 parser.add_argument('--push', type=str, default='', help="repo or user to push built container image to (no push by default)")
-parser.add_argument('--no-github-api', action='store_true', help="disalbe Github API use to force rebuild on new git commits")
+parser.add_argument('--no-github-api', action='store_true', help="disable Github API use to force rebuild on new git commits")
 
 parser.add_argument('--log-dir', '--logs', type=str, default=None, help="sets the directory to save container build logs to (default: jetson-containers/logs)")
 parser.add_argument('--log-level', type=str, default=None, choices=LogConfig.levels, help="sets the logging verbosity level")
@@ -102,7 +103,6 @@ if args.use_proxy:
     for var in proxy_vars:
         if var in os.environ:
             args.build_args[var] = os.environ[var]
-
 # add package directories
 if args.package_dirs:
     package_search_dirs(args.package_dirs)

@@ -13,6 +13,8 @@ import subprocess
 import dockerhub_api
 import datetime
 from typing import List, Dict, Any, Union
+from docker_squash.squash import Squash
+from docker_squash.errors import SquashUnnecessaryError, SquashError
 
 from packaging.version import Version
 
@@ -25,7 +27,7 @@ from .utils import (
 
 from .logging import (
     get_log_dir, log_status, log_success, log_status, log_warning, log_debug,
-    log_block, log_info, print_log, pprint_debug, colorize, LogConfig
+    log_block, log_info, print_log, pprint_debug, colorize, LogConfig, squash_logger
 )
 
 from .l4t_version import (
@@ -70,7 +72,7 @@ def build_container(
         name: str='', packages: list=[], base: str=get_l4t_base(),
         build_flags: str='', build_args: dict=None, simulate: bool=False,
         skip_packages: list=[], skip_tests: list=[], test_only: list=[],
-        push: str='', no_github_api=False, **kwargs
+        push: str='', no_github_api=False, squash=False, **kwargs
     ):
     """
     Multi-stage container build that chains together selected packages into one container image.
@@ -228,6 +230,31 @@ def build_container(
             if not simulate:  # remove the line breaks that were added for readability, and set the shell to bash so we can use $PIPESTATUS
                 status = subprocess.run(cmd.replace(_NEWLINE_, ' '), executable='/bin/bash', shell=True, check=True)
                 print('')
+                if squash:
+                    # Optional 'squash' flag to prevent exceeding max layer depth with large build chains
+                    # docker-squash is compatible with Python 3.6-3.12, so this should work with all non-depricated Jetpack versions
+                    log_block(f"<b>> SQUASHING layers from {container_name} to {base} </b>", "")
+                    try:  
+                        # Create and run squash operation using Python API  
+                        squash_instance = Squash(
+                            log=squash_logger(),
+                            image=container_name,  
+                            from_layer=base,  
+                            tag=container_name,  
+                            comment=f'{base} -> {container_name}',  
+                            load_image=True,  
+                            cleanup=False  
+                        )  
+                        
+                        new_image_id = squash_instance.run()  
+                        log_info(f"Squash successful. New image ID: {new_image_id}")  
+                        
+                    except SquashUnnecessaryError as e:  
+                        log_info(f"Squash not necessary: {str(e)}")    
+                    except SquashError as e:  
+                        log_block(f"Squash failed: {str(e)}")  
+                        raise
+              
         else:
             tag_container(base, container_name, simulate)
 

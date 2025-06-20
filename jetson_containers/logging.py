@@ -485,3 +485,34 @@ def format_str(text, length=None, pad=None):
 
 # This keeps instead of trims whitespace (for colored blocks)
 tabulate.PRESERVE_WHITESPACE = True
+
+
+import types
+
+def squash_logger():
+    """
+    Return a duck-typed logger for docker-squash.
+    It responds to .debug/.info/.warning/.error/.exception
+    (and the extra .status/.success/.verbose if squash ever calls them),
+    formats msg % args, and always reports enabled.
+    """
+    level_map = {
+        'debug':     log_debug,
+        'verbose':   log_verbose,
+        'info':      log_info,
+        'status':    log_status,
+        'success':   log_success,
+        'warning':   log_warning,
+        'error':     log_error,
+        'exception': log_error,
+    }
+
+    methods = {}
+    for name, fn in level_map.items():
+        # capture fn in default arg so closure works correctly
+        methods[name] = (lambda msg, *args, fn=fn: fn(msg % args if args else msg))
+
+    # docker-squash also does logger.isEnabledFor(level)
+    methods['isEnabledFor'] = lambda lvl: True
+
+    return types.SimpleNamespace(**methods)
